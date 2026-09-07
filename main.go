@@ -19,6 +19,22 @@ func readinessHandler(w http.ResponseWriter, r *http.Request){
 
 }
 
+
+func middlewareLog(next http.Handler) http.Handler{
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+		log.Printf("%v :: %v", r.Method, r.URL.Path)
+		next.ServeHTTP(w,r)
+	})
+}
+
+func middlewareLog2(next http.HandlerFunc) http.FuncHandler{
+	return func(w http.ResponseWriter, r *http.Request){
+		log.Printf(":v :: %v ", r.Method, r.URL.Path)
+		next(w,r)
+	}
+}
+
 func main(){
 	fmt.Println("....")
 	mux := http.NewServeMux()
@@ -31,7 +47,9 @@ func main(){
 	
 	mux.Handle("/app/assets/", http.StripPrefix("/app/assets/", image_fs))
 
-	mux.HandleFunc("/app/healthz", readinessHandler)
+	mux.Handle("/app/healthz", middlewareLog(http.HandlerFunc(readinessHandler)))
+	// another option is creating the middleware using http.FuncHandler
+	mux.Handle("/app/healthz2", middlewareLog2(readinessHandler))
 
 	server := &http.Server{
 		Addr: ":8080",
