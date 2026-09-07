@@ -18,7 +18,7 @@ func main(){
 	fs := http.FileServer(http.Dir("."))
 	mux.HandleFunc("/bob", helloHandler)
 	mux.Handle("/hello", fs)
-	server := http.Server{
+	server := &http.Server{
 		Addr: ":8080",
 		Handler: mux,  
 	}
