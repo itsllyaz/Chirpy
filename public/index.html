@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Chirpy</title>
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://googleapis.com">
+    <link rel="preconnect" href="https://gstatic.com" crossorigin>
+    <link href="https://googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Modern CSS Reset & Variable Definitions */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --primary: #1da1f2;
+            --primary-hover: #1a91da;
+            --bg-gradient: linear-gradient(135deg, #f5f8fa 0%, #e1e8ed 100%);
+            --card-bg: #ffffff;
+            --text-main: #0f1419;
+            --text-muted: #536471;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* Card Container */
+        .card {
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        /* Logo Icon Placeholder */
+        .logo-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            display: inline-block;
+            animation: chirp 2s infinite ease-in-out;
+        }
+
+        /* Title */
+        h1 {
+            color: var(--text-main);
+            font-size: 32px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            margin-bottom: 12px;
+        }
+
+        /* Description */
+        p {
+            color: var(--text-muted);
+            font-size: 16px;
+            line-height: 1.5;
+            margin-bottom: 32px;
+        }
+
+        /* Modern Button */
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 9999px; /* Fully rounded pill shape */
+            padding: 14px 32px;
+            width: 100%;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 4px 12px rgba(29, 161, 242, 0.2);
+        }
+
+        .btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Subtle floating animation for the logo */
+        @keyframes chirp {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(5deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="logo-icon">🐤</div>
+        <h1>Welcome to Chirpy</h1>
+        <p>Connect with friends, share your thoughts, and see what's happening around the world in real-time.</p>
+        <button class="btn" onclick="alert('Thanks for joining Chirpy!')">Get Started FROM PUBLIC</button>
+    </div>
+
+</body>
+</html>
+
