@@ -1,11 +1,15 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync/atomic"
 
+	"github.com/itsllyaz/Chirpy/internal/database"
+	_ "github.com/lib/pq"
 )
 
 func helloHandler(w http.ResponseWriter, r * http.Request){
@@ -39,11 +43,13 @@ func middlewareLog2(next http.HandlerFunc) http.HandlerFunc{
 
 type apiConfig struct{
 	fileserverhits atomic.Int32
+	dbQuries *database.Queries
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler{
 	return http.HandlerFunc(func(w http.ResponseWriter, r * http.Request){
 		cfg.fileserverhits.Add(1)
+		
 		next.ServeHTTP(w, r)
 	})
 }
@@ -93,5 +99,13 @@ func main(){
 	err := server.ListenAndServe()
 	if err != nil{
 		log.Fatalf("THE ERROR: :%v", err)
+	}
+
+
+	// database related....
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil{
+		log.Printf("ERROR WHILE OPENING DB CONNECTION:: %v", err)
 	}
 }
