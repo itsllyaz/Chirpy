@@ -8,16 +8,11 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
-
+	 "github.com/google/uuid"
 	"github.com/itsllyaz/Chirpy/internal/database"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
-
-func helloHandler(w http.ResponseWriter, r * http.Request){
-	fmt.Fprintln(w, "Hello From server...")
-}
-
 
 func readinessHandler(w http.ResponseWriter, r *http.Request){
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -92,15 +87,81 @@ func (cfg *apiConfig) createNewUser(w http.ResponseWriter, r *http.Request){
 	json.NewEncoder(w).Encode(createdUser)
 }
 
+func (cfg *apiConfig) createChirpy(w http.ResponseWriter, r *http.Request){
+	w.Header().Set("Content-Type", "application/json")
+	type Chirpy struct{
+		Body string `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
+	}
+	var chirpy Chirpy 
+	err := json.NewDecoder(r.Body).Decode(&chirpy)
+	if err != nil{
+		http.Error(w, "Invalid INfo...", http.StatusBadRequest)
+		return
+	}
+	params := database.CreateChirpyParams{
+    Body: sql.NullString{
+        String: chirpy.Body,
+        Valid:  true,
+    },
+    UserID: uuid.NullUUID{
+        UUID: chirpy.UserID,
+        Valid: true,
+    },
+}	
+	createdChirpy, err := cfg.dbQuries.CreateChirpy(r.Context(), params)
+	if err != nil{
+		log.Fatal("Can't create chirpy")
+		fmt.Println("DEBUG ACTION HERE:: ", err)
+	}
+	json.NewEncoder(w).Encode(createdChirpy)
+}
+
+func (cfg *apiConfig) getChirpys(w http.ResponseWriter, r *http.Request){
+	// here baby...
+	chirpys, err := cfg.dbQuries.GetChirpys(r.Context())
+	if err != nil{
+		http.Error(w, "Internal Error", http.StatusInternalServerError)
+		fmt.Println("THE ERROR: ", err)
+		return 
+	}
+	jsonData, err := json.Marshal(chirpys)
+	if err != nil{
+		http.Error(w, "error marshaling json", http.StatusInternalServerError)
+		return 
+	}
+	fmt.Fprintln(w, string(jsonData))
+	
+}
+
+func (cfg *apiConfig) getChirpyByID(w http.ResponseWriter, r *http.Request){
+	id :=  r.PathValue("id")
+	parsedUUID, err := uuid.Parse(id)
+	if err != nil{
+		http.Error(w, "Internal Error", http.StatusInternalServerError)
+		return 
+	}
+	chirpy, err := cfg.dbQuries.GetChirpyByID(r.Context(), parsedUUID)
+	if err != nil{
+		http.Error(w, "Can't Fetch data", http.StatusNotFound)
+		fmt.Println("THE ERROR: ", err)
+		return
+	}
+	jsonData, err := json.Marshal(chirpy)
+	if err != nil{
+		http.Error(w, "Internal problem", http.StatusInternalServerError)
+		return 
+	}
+	fmt.Fprintln(w, string(jsonData))
+	
+}
+
 func main(){
-	fmt.Println("....")
+	fmt.Println("server running:....")
 	mux := http.NewServeMux()
 	fs := http.FileServer(http.Dir("."))
-	// cfg := &apiConfig{
-	// 	dbQuries: database.New(dbConn),
-	// }
+	image_fs := http.FileServer(http.Dir("./images"))
 
-		// database related....
 	err := godotenv.Load()
 	if err != nil{
 		log.Fatal("Error loading .env file")
@@ -118,10 +179,6 @@ func main(){
 	}
 
 
-
-	image_fs := http.FileServer(http.Dir("./images"))	
-	mux.HandleFunc("/app/bob", helloHandler)
-
 	mux.Handle("/app/hello/", http.StripPrefix("/app/hello/", fs))
 	mux.Handle("/app/public/", fs)
 	
@@ -137,6 +194,10 @@ func main(){
 	mux.Handle("POST /admin/reset", http.HandlerFunc(cfg.resetAdminMetricsHandler))
 
 	mux.Handle("POST /admin/users", http.HandlerFunc(cfg.createNewUser))
+
+	mux.Handle("POST /admin/chirpys", http.HandlerFunc(cfg.createChirpy))
+	mux.Handle("GET /api/chirpys", http.HandlerFunc(cfg.getChirpys))
+	mux.Handle("GET /api/chirpys/{id}", http.HandlerFunc(cfg.getChirpyByID))
 
 	server := &http.Server{
 		Addr: ":8080",
