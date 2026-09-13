@@ -7,7 +7,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 )
@@ -26,8 +25,8 @@ RETURNING id, body, created_at, updated_at, user_id
 `
 
 type CreateChirpyParams struct {
-	Body   sql.NullString
-	UserID uuid.NullUUID
+	Body   string
+	UserID uuid.UUID
 }
 
 func (q *Queries) CreateChirpy(ctx context.Context, arg CreateChirpyParams) (Chirpy, error) {
@@ -44,7 +43,7 @@ func (q *Queries) CreateChirpy(ctx context.Context, arg CreateChirpyParams) (Chi
 }
 
 const getChirpyByID = `-- name: GetChirpyByID :one
-SELECT id, body, created_at, updated_at, user_id FROM chirpys WHERE id = $1
+SELECT id, body, created_at, updated_at, user_id FROM chirpy WHERE id = $1
 `
 
 func (q *Queries) GetChirpyByID(ctx context.Context, id uuid.UUID) (Chirpy, error) {

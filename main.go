@@ -8,7 +8,10 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
-	 "github.com/google/uuid"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/itsllyaz/Chirpy/internal/auth"
 	"github.com/itsllyaz/Chirpy/internal/database"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -70,44 +73,57 @@ func (cfg *apiConfig) resetAdminMetricsHandler(w http.ResponseWriter, r *http.Re
 
 func (cfg *apiConfig) createNewUser(w http.ResponseWriter, r *http.Request){
 	w.Header().Set("Content-Type", "application/json")
-	var user *database.User
+	type NewUser struct{
+		Password string `json:"password"`
+		Email string `json:"email"`
+	}
+	type UserReponse struct { Email string `json:"email"` }
+	var user NewUser 
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil{
 		http.Error(w, "Invalid Request check your request please", http.StatusBadRequest)
 		fmt.Println("The error is :: ", err)
 		return 
 	}
+	if user.Email == "" || user.Password == ""{
+		http.Error( w, "Can't Create User. Please Enter full information", http.StatusBadRequest)
+		return 
+	}
+	hashedPassword, err := auth.HashPassword(user.Password)
+	if err != nil{
+		http.Error(w, "Internal Error", http.StatusInternalServerError)
+		return 
+	}
+	params := database.CreateUserParams{
+		Password: hashedPassword,
+		// Password: sql.NullString{String: hashedPassword, Valid: true},
+		Email: user.Email,
+
 		
-	createdUser, err := cfg.dbQuries.CreateUser(r.Context(), user.Email)
+	}
+		
+	_, err = cfg.dbQuries.CreateUser(r.Context(), params)
 	if err != nil{
 		http.Error(w, "Can't Create User", http.StatusInternalServerError)
 		fmt.Println("CAN'T CREATE, ERROR:: ", err)
 		return
 	}
-	json.NewEncoder(w).Encode(createdUser)
+	user_reponse := UserReponse{Email:user.Email}
+	json.NewEncoder(w).Encode(user_reponse)
 }
 
 func (cfg *apiConfig) createChirpy(w http.ResponseWriter, r *http.Request){
 	w.Header().Set("Content-Type", "application/json")
-	type Chirpy struct{
-		Body string `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
-	}
-	var chirpy Chirpy 
+
+	var chirpy database.CreateChirpyParams 
 	err := json.NewDecoder(r.Body).Decode(&chirpy)
 	if err != nil{
 		http.Error(w, "Invalid INfo...", http.StatusBadRequest)
 		return
 	}
 	params := database.CreateChirpyParams{
-    Body: sql.NullString{
-        String: chirpy.Body,
-        Valid:  true,
-    },
-    UserID: uuid.NullUUID{
-        UUID: chirpy.UserID,
-        Valid: true,
-    },
+    Body: chirpy.Body, 
+		UserID: chirpy.UserID, 
 }	
 	createdChirpy, err := cfg.dbQuries.CreateChirpy(r.Context(), params)
 	if err != nil{
@@ -156,6 +172,62 @@ func (cfg *apiConfig) getChirpyByID(w http.ResponseWriter, r *http.Request){
 	
 }
 
+func (cfg *apiConfig) userLogin(w http.ResponseWriter, r *http.Request){
+	/*
+		-login--- accept email and password  as string format
+		-you accept password as string and hash it 
+		-and compare and check it with the one in database 
+		-if the password and email correct, you will return....  id - created_at - updated_at - email 
+	*/
+	type LoginRequest struct{
+		Email string `json:"email"`
+		Password string `json:"password"`
+	}
+	var req LoginRequest
+	type User struct {
+		ID uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Email string `json:"email"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
+
+	if err != nil{
+		http.Error(w, "Invalid Format", http.StatusBadRequest)
+		return
+	}
+	
+	theUser, err := cfg.dbQuries.LoginUser(r.Context(), req.Email)
+	if err != nil{
+		http.Error(w, "Internal Error", http.StatusInternalServerError)
+		fmt.Println("THE ERROR: ", err)
+		return
+	}
+
+	jsonData, err := json.MarshalIndent(theUser, "", " ")
+	fmt.Println(string(jsonData))	
+	
+	match, err := auth.CheckPasswordHash(req.Password, theUser.Password)
+	if err != nil{
+		http.Error(w, "Internal Problem", http.StatusInternalServerError)
+		return
+	}
+
+	if !match{
+		http.Error(w, "Invalid Credentials", http.StatusUnauthorized)
+		return 
+	}
+
+	user := User{
+		ID: theUser.ID,
+		CreatedAt: theUser.CreatedAt,
+		UpdatedAt: theUser.UpdatedAt,
+		Email: theUser.Email,
+	}
+	json.NewEncoder(w).Encode(user)
+
+}
+
 func main(){
 	fmt.Println("server running:....")
 	mux := http.NewServeMux()
@@ -193,11 +265,13 @@ func main(){
 	mux.Handle("GET /admin/metrics", http.HandlerFunc(cfg.writeAdminMetricsHandler)) 
 	mux.Handle("POST /admin/reset", http.HandlerFunc(cfg.resetAdminMetricsHandler))
 
-	mux.Handle("POST /admin/users", http.HandlerFunc(cfg.createNewUser))
+	mux.Handle("POST /api/users", http.HandlerFunc(cfg.createNewUser))
 
 	mux.Handle("POST /admin/chirpys", http.HandlerFunc(cfg.createChirpy))
 	mux.Handle("GET /api/chirpys", http.HandlerFunc(cfg.getChirpys))
 	mux.Handle("GET /api/chirpys/{id}", http.HandlerFunc(cfg.getChirpyByID))
+
+	mux.Handle("POST /api/login", http.HandlerFunc(cfg.userLogin))
 
 	server := &http.Server{
 		Addr: ":8080",

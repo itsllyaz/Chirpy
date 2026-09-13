@@ -5,7 +5,6 @@
 package database
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,10 +12,10 @@ import (
 
 type Chirpy struct {
 	ID        uuid.UUID
-	Body      sql.NullString
+	Body      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	UserID    uuid.NullUUID
+	UserID    uuid.UUID
 }
 
 type User struct {
@@ -24,4 +23,5 @@ type User struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	Email     string
+	Password  string
 }
