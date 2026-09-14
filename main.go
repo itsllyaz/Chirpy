@@ -10,7 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+
 	"github.com/google/uuid"
+	"github.com/itsllyaz/Chirpy/internal"
 	"github.com/itsllyaz/Chirpy/internal/auth"
 	"github.com/itsllyaz/Chirpy/internal/database"
 	"github.com/joho/godotenv"
@@ -44,6 +46,8 @@ func middlewareLog2(next http.HandlerFunc) http.HandlerFunc{
 type apiConfig struct{
 	fileserverhits atomic.Int32
 	dbQuries *database.Queries
+	DBURL string 
+	JWTSECRETKEY []byte
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler{
@@ -189,6 +193,7 @@ func (cfg *apiConfig) userLogin(w http.ResponseWriter, r *http.Request){
 		CreatedAt time.Time `json:"created_at"`
 		UpdatedAt time.Time `json:"updated_at"`
 		Email string `json:"email"`
+		Token string `json:"token"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&req)
 
@@ -204,9 +209,9 @@ func (cfg *apiConfig) userLogin(w http.ResponseWriter, r *http.Request){
 		return
 	}
 
-	jsonData, err := json.MarshalIndent(theUser, "", " ")
-	fmt.Println(string(jsonData))	
-	
+	// jsonData, err := json.MarshalIndent(theUser, "", " ")
+	// fmt.Println(string(jsonData))	
+	//
 	match, err := auth.CheckPasswordHash(req.Password, theUser.Password)
 	if err != nil{
 		http.Error(w, "Internal Problem", http.StatusInternalServerError)
@@ -217,15 +222,51 @@ func (cfg *apiConfig) userLogin(w http.ResponseWriter, r *http.Request){
 		http.Error(w, "Invalid Credentials", http.StatusUnauthorized)
 		return 
 	}
-
+	
+	tokenString, err := auth.MakeJWT(theUser.ID, theUser.Email, cfg.JWTSECRETKEY)
+	if err != nil{
+		http.Error(w, "Internal Error: ", http.StatusInternalServerError)
+		fmt.Println("JWT INTERNAL ERROR: ", err)
+		return 
+	}
 	user := User{
 		ID: theUser.ID,
 		CreatedAt: theUser.CreatedAt,
 		UpdatedAt: theUser.UpdatedAt,
 		Email: theUser.Email,
+		Token: tokenString,
 	}
-	json.NewEncoder(w).Encode(user)
 
+	json.NewEncoder(w).Encode(user)
+	fmt.Println("TOKEN: ", user.Token)
+
+	// tokenString, err := auth.MakeJWT(user.ID, user.Email )
+	// if err != nil{
+	// 	fmt.Println("ERROR ERROR: ", err)
+	//
+	// }
+	// incomingToken := fmt.Sprintf("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9%v",tokenString)
+	// fmt.Println("THE TOKEN: ", tokenString)
+	//
+	// extractedData := &auth.CustomClaims{}
+	// token, err := jwt.ParseWithClaims(incomingToken, extractedData, func(token *jwt.Token) (any, error){
+	// 	return auth.JwtKey, nil
+	// })
+	//
+	// if err != nil{
+	// 	fmt.Println("error the token was fake or expired...")
+	// }
+	// if token.Valid{
+	// 	fmt.Println("Success... server now who you are")
+	// 	fmt.Printf("UserID: %v, and UserEmail: %v", extractedData.UserID, extractedData.Email)
+	// }
+	//
+	// fmt.Println(".................")
+	// fmt.Println(".................")
+}
+
+func (cfg *apiConfig) protectedHandler(w http.ResponseWriter, r *http.Request){
+	fmt.Fprintln(w, "THIS IS PROTECTED PAGE. ONLY AUTHENTICATED USER CAN SEE IT!!")
 }
 
 func main(){
@@ -239,6 +280,7 @@ func main(){
 		log.Fatal("Error loading .env file")
 	}
 	dbURL := os.Getenv("DB_URL")
+	JWTSECRETKEY := []byte(os.Getenv("JWTSECRETKEY"))
 	dbConn, err := sql.Open("postgres", dbURL)
 
 	if err != nil{
@@ -248,7 +290,12 @@ func main(){
 
 	cfg := &apiConfig{
 		dbQuries: database.New(dbConn),
+		DBURL: dbURL,
+		JWTSECRETKEY: JWTSECRETKEY,
 	}
+	
+	mw := internal.New(cfg.JWTSECRETKEY)
+
 
 
 	mux.Handle("/app/hello/", http.StripPrefix("/app/hello/", fs))
@@ -272,6 +319,7 @@ func main(){
 	mux.Handle("GET /api/chirpys/{id}", http.HandlerFunc(cfg.getChirpyByID))
 
 	mux.Handle("POST /api/login", http.HandlerFunc(cfg.userLogin))
+	mux.Handle("GET /api/protected", mw.LoginAuthMiddleware(http.HandlerFunc(cfg.protectedHandler)))
 
 	server := &http.Server{
 		Addr: ":8080",
